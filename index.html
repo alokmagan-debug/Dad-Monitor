@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Dad Monitor</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0e14;color:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+header{padding:14px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1f2937}
+.logo{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#6b7280}
+.badge{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;text-transform:uppercase;color:#6b7280}
+.dot{width:7px;height:7px;border-radius:50%;background:#6b7280;transition:background .3s}
+.dot.on{background:#10b981;box-shadow:0 0 8px #10b981;animation:pd 2s infinite}
+@keyframes pd{0%,100%{opacity:1}50%{opacity:.4}}
+.camwrap{position:relative;width:100%;background:#000;aspect-ratio:4/3;overflow:hidden;flex-shrink:0}
+video{width:100%;height:100%;object-fit:cover}
+canvas{display:none}
+.camlbl{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:10px;font-weight:600;text-transform:uppercase;color:rgba(255,255,255,.5);background:rgba(0,0,0,.6);padding:3px 10px;border-radius:20px;white-space:nowrap}
+.scard{margin:12px 14px 0;background:#111827;border:1px solid #1f2937;border-radius:14px;padding:14px;transition:border-color .4s,background .4s}
+.scard.ok{border-color:#10b981;background:rgba(16,185,129,.05)}
+.scard.warn{border-color:#f59e0b;background:rgba(245,158,11,.05)}
+.scard.alert{border-color:#ef4444;background:rgba(239,68,68,.07);animation:fb 1s infinite}
+@keyframes fb{0%,100%{border-color:#ef4444}50%{border-color:rgba(239,68,68,.2)}}
+.srow{display:flex;align-items:center;gap:12px}
+.sicon{font-size:28px;flex-shrink:0}
+.stitle{font-size:16px;font-weight:700;line-height:1.2}
+.sdesc{font-size:12px;color:#6b7280;margin-top:3px;line-height:1.4}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 14px 0}
+.ind{background:#111827;border:1px solid #1f2937;border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:8px}
+.iico{font-size:18px;flex-shrink:0}
+.ilbl{font-size:9px;font-weight:600;text-transform:uppercase;color:#6b7280;display:block;letter-spacing:.06em}
+.ival{font-size:12px;font-weight:700;margin-top:2px;display:block}
+.ok-c{color:#10b981}.warn-c{color:#f59e0b}.alert-c{color:#ef4444}.unk-c{color:#6b7280}
+.meta{margin:8px 14px 0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.metabox{background:#111827;border:1px solid #1f2937;border-radius:10px;padding:8px 12px}
+.metalbl{font-size:9px;font-weight:600;text-transform:uppercase;color:#6b7280;display:block}
+.metaval{font-size:11px;font-weight:600;margin-top:2px;display:block;color:#9ca3af}
+.logsec{margin:10px 14px 0}
+.loglbl{font-size:9px;font-weight:700;text-transform:uppercase;color:#6b7280;margin-bottom:6px;letter-spacing:.08em}
+.loglist{display:flex;flex-direction:column;gap:4px;max-height:110px;overflow-y:auto}
+.logitem{display:flex;gap:8px;font-size:11px}
+.logtime{color:#4b5563;flex-shrink:0;width:52px;font-variant-numeric:tabular-nums}
+.logmsg{line-height:1.4}
+.logmsg.ok{color:#10b981}.logmsg.warn{color:#f59e0b}.logmsg.alert{color:#ef4444}
+.controls{margin:10px 14px 24px;display:flex;flex-direction:column;gap:8px}
+.rowbox{display:flex;align-items:center;gap:8px;background:#111827;border:1px solid #1f2937;border-radius:12px;padding:10px 14px}
+.rowbox label{font-size:12px;color:#6b7280;flex-shrink:0}
+.rowbox select{background:#0a0e14;color:#f9fafb;border:1px solid #1f2937;border-radius:8px;padding:4px 8px;font-size:12px;font-weight:600;margin-left:auto}
+.btn{width:100%;padding:15px;border-radius:13px;border:none;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .2s}
+.btn:active{opacity:.8}
+.btn-go{background:#10b981;color:#000}
+.btn-stop{background:#ef4444;color:#fff}
+.flash{display:none;position:fixed;inset:0;background:rgba(239,68,68,.15);pointer-events:none;z-index:100;animation:fl .8s infinite}
+@keyframes fl{0%,100%{opacity:1}50%{opacity:0}}
+.consecutive{font-size:10px;color:#6b7280;text-align:center;margin-top:2px}
+</style>
+</head>
+<body>
+<div class="flash" id="flash"></div>
+<header>
+  <div class="logo">Dad Monitor</div>
+  <div class="badge"><div class="dot" id="dot"></div><span id="livelbl">Standby</span></div>
+</header>
+
+<div class="camwrap">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
+  <div class="camlbl" id="camlbl">Camera off</div>
+</div>
+
+<div class="scard" id="scard">
+  <div class="srow">
+    <div class="sicon" id="sicon">&#127769;</div>
+    <div>
+      <div class="stitle" id="stitle">Not monitoring</div>
+      <div class="sdesc" id="sdesc">Press Start to begin watching</div>
+    </div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="ind"><div class="iico">&#129739;</div><div><span class="ilbl">Oxygen</span><span class="ival unk-c" id="o2val">--</span></div></div>
+  <div class="ind"><div class="iico">&#127,919;</div><div><span class="ilbl">Bed position</span><span class="ival unk-c" id="bedval">--</span></div></div>
+</div>
+
+<div class="meta">
+  <div class="metabox"><span class="metalbl">Last checked</span><span class="metaval" id="lastChecked">Never</span></div>
+  <div class="metabox"><span class="metalbl">Alert status</span><span class="metaval" id="alertStatus">None</span></div>
+</div>
+
+<div class="logsec">
+  <div class="loglbl">Event log</div>
+  <div class="loglist" id="loglist">
+    <div class="logitem"><span class="logtime">--</span><span class="logmsg">Waiting to start</span></div>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="rowbox">
+    <label>Check every</label>
+    <select id="iv">
+      <option value="10">10 sec</option>
+      <option value="20" selected>20 sec</option>
+      <option value="30">30 sec</option>
+      <option value="60">1 min</option>
+    </select>
+  </div>
+  <button class="btn btn-go" id="startBtn" onclick="toggleMonitor()">&#9654; Start Monitoring</button>
+  <div class="consecutive" id="consecLabel"></div>
+</div>
+
+<script>
+var monitoring = false;
+var stream = null;
+var checkTimer = null;
+var consecutiveRisky = 0;
+var lastAlertTime = 0;
+var ALERT_COOLDOWN = 120000; // 2 minutes
+
+function tnow() {
+  return new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
+}
+
+function addLog(msg, type) {
+  type = type || '';
+  var l = document.getElementById('loglist');
+  var d = document.createElement('div');
+  d.className = 'logitem';
+  d.innerHTML = '<span class="logtime">' + tnow() + '</span><span class="logmsg ' + type + '">' + msg + '</span>';
+  l.insertBefore(d, l.firstChild);
+  while (l.children.length > 30) l.removeChild(l.lastChild);
+}
+
+function setStatus(icon, title, desc, cls) {
+  document.getElementById('sicon').innerHTML = icon;
+  document.getElementById('stitle').textContent = title;
+  document.getElementById('sdesc').textContent = desc;
+  document.getElementById('scard').className = 'scard ' + cls;
+}
+
+function setInd(id, text, cls) {
+  var e = document.getElementById(id);
+  e.textContent = text;
+  e.className = 'ival ' + cls + '-c';
+}
+
+function captureFrame() {
+  var v = document.getElementById('video');
+  var c = document.getElementById('canvas');
+  // Resize to max 640px wide
+  var maxW = 640;
+  var scale = Math.min(1, maxW / (v.videoWidth || 640));
+  c.width = Math.round((v.videoWidth || 640) * scale);
+  c.height = Math.round((v.videoHeight || 480) * scale);
+  c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+  // Quality 0.45 as specified
+  var dataUrl = c.toDataURL('image/jpeg', 0.45);
+  // Return only base64 part, stripped of non-ASCII chars
+  return dataUrl.split(',')[1].replace(/[^A-Za-z0-9+\/=]/g, '');
+}
+
+function runCheck() {
+  if (!monitoring) return;
+
+  var img = captureFrame();
+  if (!img) {
+    addLog('No frame captured', 'warn');
+    scheduleNext();
+    return;
+  }
+
+  addLog('Analyzing...', '');
+
+  fetch('/.netlify/functions/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      image: img,
+      consecutiveCount: consecutiveRisky
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.error) {
+      addLog('Error: ' + data.error, 'warn');
+      scheduleNext();
+      return;
+    }
+
+    var now = new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:true});
+    document.getElementById('lastChecked').textContent = now;
+
+    // Oxygen
+    if (data.oxygen === 'ON') {
+      setInd('o2val', 'Wearing', 'ok');
+    } else if (data.oxygen === 'NOT VISIBLE') {
+      setInd('o2val', 'Not visible!', 'alert');
+    } else {
+      setInd('o2val', 'Unclear', 'warn');
+    }
+
+    // Bed
+    if (data.bed === 'LYING SAFE') {
+      setInd('bedval', 'Lying safe', 'ok');
+    } else if (data.bed === 'SITTING UP') {
+      setInd('bedval', 'Sitting up!', 'alert');
+    } else if (data.bed === 'OFF BED') {
+      setInd('bedval', 'Off bed!', 'alert');
+    } else {
+      setInd('bedval', 'Unclear', 'warn');
+    }
+
+    if (data.isRisky) {
+      consecutiveRisky++;
+      document.getElementById('consecLabel').textContent = 'Risky reading ' + consecutiveRisky + ' of 2 needed to alert';
+
+      if (consecutiveRisky >= 2) {
+        var now2 = Date.now();
+        var cooldownOk = (now2 - lastAlertTime) > ALERT_COOLDOWN;
+
+        var issues = [];
+        if (data.oxygen === 'NOT VISIBLE') issues.push('oxygen not visible');
+        if (data.bed === 'SITTING UP') issues.push('may be getting up');
+        if (data.bed === 'OFF BED') issues.push('may be off bed');
+        if (data.camera === 'BLOCKED') issues.push('camera blocked');
+        var itxt = issues.join(' + ');
+
+        setStatus('&#128680;', 'ALERT - Check Dad!', itxt + (data.note ? '. ' + data.note : ''), 'alert');
+        addLog('ALERT: ' + itxt, 'alert');
+        document.getElementById('flash').style.display = 'block';
+        document.getElementById('alertStatus').textContent = cooldownOk ? 'Sent ' + tnow() : 'Cooldown active';
+
+        if (data.alertSent) {
+          lastAlertTime = Date.now();
+        }
+
+        playBeep();
+      } else {
+        setStatus('&#9888;&#65039;', 'Possible issue', (data.note || 'Watching closely...'), 'warn');
+        addLog('Risky reading: ' + (data.note || ''), 'warn');
+      }
+    } else {
+      consecutiveRisky = 0;
+      document.getElementById('consecLabel').textContent = '';
+      setStatus('&#9989;', 'All clear', data.note || 'Resting normally with oxygen.', 'ok');
+      addLog('All clear - ' + (data.note || 'OK'), 'ok');
+      document.getElementById('flash').style.display = 'none';
+      document.getElementById('alertStatus').textContent = 'None';
+    }
+
+    scheduleNext();
+  })
+  .catch(function(e) {
+    addLog('Network error: ' + e.message, 'warn');
+    scheduleNext();
+  });
+}
+
+function scheduleNext() {
+  if (!monitoring) return;
+  var iv = parseInt(document.getElementById('iv').value) * 1000;
+  checkTimer = setTimeout(runCheck, iv);
+}
+
+function playBeep() {
+  try {
+    var ac = new (window.AudioContext || window.webkitAudioContext)();
+    for (var i = 0; i < 3; i++) {
+      var o = ac.createOscillator(), g = ac.createGain();
+      o.connect(g); g.connect(ac.destination);
+      o.frequency.value = 880; o.type = 'square'; g.gain.value = 0.3;
+      o.start(ac.currentTime + i * 0.4);
+      o.stop(ac.currentTime + i * 0.4 + 0.25);
+    }
+  } catch(e) {}
+}
+
+function toggleMonitor() {
+  if (!monitoring) {
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    })
+    .catch(function() {
+      return navigator.mediaDevices.getUserMedia({ video: true });
+    })
+    .then(function(s) {
+      stream = s;
+      document.getElementById('video').srcObject = s;
+      monitoring = true;
+      consecutiveRisky = 0;
+      document.getElementById('startBtn').textContent = 'Stop Monitoring';
+      document.getElementById('startBtn').className = 'btn btn-stop';
+      document.getElementById('dot').classList.add('on');
+      document.getElementById('livelbl').textContent = 'Live';
+      document.getElementById('camlbl').textContent = 'Live - back camera';
+      document.getElementById('iv').disabled = true;
+      setStatus('&#128065;', 'Monitoring active', 'Watching oxygen and bed position...', '');
+      addLog('Monitoring started', 'ok');
+      // First check after 4 seconds to let camera warm up
+      checkTimer = setTimeout(runCheck, 4000);
+    })
+    .catch(function() {
+      addLog('Camera denied - check Safari settings', 'alert');
+      setStatus('&#9888;&#65039;', 'Camera denied', 'Go to Settings > Safari > Camera > Allow', 'warn');
+    });
+  } else {
+    monitoring = false;
+    clearTimeout(checkTimer);
+    if (stream) { stream.getTracks().forEach(function(t) { t.stop(); }); stream = null; }
+    document.getElementById('video').srcObject = null;
+    document.getElementById('startBtn').textContent = 'Start Monitoring';
+    document.getElementById('startBtn').className = 'btn btn-go';
+    document.getElementById('dot').classList.remove('on');
+    document.getElementById('livelbl').textContent = 'Standby';
+    document.getElementById('camlbl').textContent = 'Camera off';
+    document.getElementById('iv').disabled = false;
+    document.getElementById('flash').style.display = 'none';
+    document.getElementById('consecLabel').textContent = '';
+    setStatus('&#127769;', 'Monitoring stopped', 'Press Start to begin watching', '');
+    setInd('o2val', '--', 'unk');
+    setInd('bedval', '--', 'unk');
+    document.getElementById('lastChecked').textContent = 'Never';
+    document.getElementById('alertStatus').textContent = 'None';
+    addLog('Monitoring stopped', '');
+  }
+}
+</script>
+</body>
+</html>
