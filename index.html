@@ -159,6 +159,30 @@ function setInd(id, text, cls) {
   e.className = 'ival ' + cls + '-c';
 }
 
+function getImageBrightness(ctx, width, height) {
+  var imageData = ctx.getImageData(0, 0, width, height);
+  var data = imageData.data;
+  var sum = 0;
+  var samples = 0;
+  for (var i = 0; i < data.length; i += 16) {
+    sum += (data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114);
+    samples++;
+  }
+  return sum / samples;
+}
+
+function brightenImage(ctx, width, height, brightness, contrast) {
+  var imageData = ctx.getImageData(0, 0, width, height);
+  var data = imageData.data;
+  var factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+  for (var i = 0; i < data.length; i += 4) {
+    data[i]   = Math.min(255, Math.max(0, factor * (data[i]   - 128) + 128 + brightness));
+    data[i+1] = Math.min(255, Math.max(0, factor * (data[i+1] - 128) + 128 + brightness));
+    data[i+2] = Math.min(255, Math.max(0, factor * (data[i+2] - 128) + 128 + brightness));
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
 function captureFrame() {
   var v = document.getElementById('video');
   var c = document.getElementById('canvas');
@@ -166,7 +190,21 @@ function captureFrame() {
   var scale = Math.min(1, maxW / (v.videoWidth || 640));
   c.width = Math.round((v.videoWidth || 640) * scale);
   c.height = Math.round((v.videoHeight || 480) * scale);
-  c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+  var ctx = c.getContext('2d');
+  ctx.drawImage(v, 0, 0, c.width, c.height);
+
+  // Auto detect brightness
+  var brightness = getImageBrightness(ctx, c.width, c.height);
+  var modeLabel = document.getElementById('camlbl');
+
+  if (brightness < 80) {
+    // Dark image - apply boost
+    brightenImage(ctx, c.width, c.height, 60, 40);
+    if (modeLabel) modeLabel.textContent = 'Live - Night mode (boosted)';
+  } else {
+    if (modeLabel) modeLabel.textContent = 'Live - Day mode';
+  }
+
   return c.toDataURL('image/jpeg', 0.45).split(',')[1].replace(/[^A-Za-z0-9+\/=]/g, '');
 }
 
