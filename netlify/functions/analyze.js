@@ -126,7 +126,7 @@ Respond ONLY in this exact JSON format:
     if (result.bed === 'OFF BED') issues.push('Patient may be off the bed');
     if (result.camera === 'BLOCKED') issues.push('Camera is blocked or too dark');
 
-    const alertMsg = issues.join(' + ');
+    const alertMsg = issues.join(' + ') + (result.note ? '. ' + result.note : '');
 
     try {
       await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
