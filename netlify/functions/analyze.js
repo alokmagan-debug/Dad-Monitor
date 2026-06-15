@@ -36,14 +36,24 @@ exports.handler = async function (event) {
     return { statusCode: 400, body: JSON.stringify({ error: 'No image provided' }) };
   }
 
-  const prompt = `You are a medical safety monitor watching an elderly patient in bed at night.
+  const prompt = `You are a medical safety monitor watching an elderly patient in bed at any time of day or night.
 
 Analyze this image and detect exactly:
 
 1. OXYGEN: Is the patient wearing a nasal cannula or oxygen mask?
-   - Clearly visible on face: "ON"
-   - Not visible or removed: "NOT VISIBLE"
-   - Too dark or unclear: "UNKNOWN"
+A nasal cannula is a thin clear or green plastic tube that:
+- Sits under the nose with two small prongs in the nostrils
+- Runs across the cheeks on both sides of the face
+- Loops over and behind both ears
+
+Look for ANY of these signs even if partially visible:
+- Tubing across cheeks or behind ears
+- Small prongs under nose
+- Oxygen mask covering nose and mouth
+
+   - Any part of cannula or mask visible: "ON"
+   - Face clearly visible but no tubing at all: "NOT VISIBLE"
+   - Face not visible or unclear: "UNKNOWN"
 
 2. BED: What is the patient position?
    - Lying down safely: "LYING SAFE"
