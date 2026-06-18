@@ -41,19 +41,22 @@ exports.handler = async function (event) {
 Analyze this image and detect exactly:
 
 1. OXYGEN: Is the patient wearing a nasal cannula or oxygen mask?
-A nasal cannula is a thin clear or green plastic tube that:
-- Sits under the nose with two small prongs in the nostrils
-- Runs across the cheeks on both sides of the face
-- Loops over and behind both ears
 
-Look for ANY of these signs even if partially visible:
-- Tubing across cheeks or behind ears
-- Small prongs under nose
-- Oxygen mask covering nose and mouth
+This is a low-light/infrared night vision camera - images will be grainy and black and white. Be extra careful before concluding the cannula is missing.
 
-   - Any part of cannula or mask visible: "ON"
-   - Face clearly visible but no tubing at all: "NOT VISIBLE"
-   - Face not visible or unclear: "UNKNOWN"
+A nasal cannula is a THIN, often hard-to-see tube that may appear as:
+- A thin line or wire-like shape near or below the nose
+- Tubing running along the cheek toward the ear, even if faint
+- A small loop or curve near the nostrils
+- The tubing may follow the curve of the face when the patient is lying on their side, not just straight across both cheeks
+
+In grainy IR images the cannula often looks like a thin gray line that can be mistaken for a wrinkle, shadow, or pillow fold. Look very closely along the path from the nose toward the ear before deciding there is nothing there.
+
+An oxygen mask is a larger device covering nose and mouth, often with visible straps around the head.
+
+   - ANY thin tubing, line, or mask visible near the face, even partial or faint: "ON"
+   - Patient's face is clearly visible, well lit enough to see detail, and there is definitively no tubing or mask anywhere near nose/mouth/cheeks/ears: "NOT VISIBLE"
+   - Face partially visible, image too grainy/dark to be confident, or angle makes it hard to see the nose/cheek area clearly: "UNKNOWN"
 
 2. BED: What is the patient's position and location?
    - Lying down safely in bed: "LYING SAFE"
