@@ -55,11 +55,12 @@ Look for ANY of these signs even if partially visible:
    - Face clearly visible but no tubing at all: "NOT VISIBLE"
    - Face not visible or unclear: "UNKNOWN"
 
-2. BED: What is the patient position?
-   - Lying down safely: "LYING SAFE"
-   - Sitting up or legs over edge: "SITTING UP"
-   - Not in bed: "OFF BED"
-   - Unclear: "UNKNOWN"
+2. BED: What is the patient's position and location?
+   - Lying down safely in bed: "LYING SAFE"
+   - Sitting up in bed or legs over edge: "SITTING UP"
+   - Safely seated in a wheelchair or chair (not in bed): "IN CHAIR"
+   - Standing or walking: "STANDING"
+   - Unclear or not visible: "UNKNOWN"
 
 3. CAMERA: Is the view clear?
    - Clear: "OK"
@@ -105,11 +106,10 @@ Respond ONLY in this JSON:
   const isRisky =
     result.oxygen === 'NOT VISIBLE' ||
     result.bed === 'SITTING UP' ||
-    result.bed === 'OFF BED' ||
     result.camera === 'BLOCKED';
 
   const oxygenStatus = result.oxygen === 'ON' ? 'Oxygen: Wearing' : result.oxygen === 'NOT VISIBLE' ? 'Oxygen: NOT VISIBLE' : 'Oxygen: Unclear';
-  const bedStatus = result.bed === 'LYING SAFE' ? 'Bed: Lying safely' : result.bed === 'SITTING UP' ? 'Bed: SITTING UP' : result.bed === 'OFF BED' ? 'Bed: OFF BED' : 'Bed: Unclear';
+  const bedStatus = result.bed === 'LYING SAFE' ? 'Bed: Lying safely' : result.bed === 'SITTING UP' ? 'Bed: SITTING UP' : result.bed === 'IN CHAIR' ? 'Bed: In wheelchair/chair' : result.bed === 'STANDING' ? 'Bed: Standing' : 'Bed: Unclear';
   const fullMessage = oxygenStatus + ' | ' + bedStatus + (result.note ? ' | ' + result.note : '');
 
   let alertSent = false;
@@ -131,7 +131,6 @@ Respond ONLY in this JSON:
     const issues = [];
     if (result.oxygen === 'NOT VISIBLE') issues.push('Oxygen cannula not visible');
     if (result.bed === 'SITTING UP') issues.push('Patient sitting up - may be getting out of bed');
-    if (result.bed === 'OFF BED') issues.push('Patient may be off the bed');
     if (result.camera === 'BLOCKED') issues.push('Camera blocked or too dark');
 
     const alertMsg = issues.join(' + ') + (result.note ? '. ' + result.note : '');
