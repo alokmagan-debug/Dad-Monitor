@@ -52,7 +52,13 @@ A nasal cannula is a THIN, often hard-to-see tube that may appear as:
 
 In grainy IR images the cannula often looks like a thin gray line that can be mistaken for a wrinkle, shadow, or pillow fold. Look very closely along the path from the nose toward the ear before deciding there is nothing there.
 
-An oxygen mask is a larger device covering nose and mouth, often with visible straps around the head.
+An oxygen mask is a device that may cover the nose and mouth, or sometimes just rest near the nose/upper lip area. In low light it may appear as:
+- A darker curved shape or frame across the lower face
+- Straps or a band running from the face toward/around the ear or head
+- A visible rim, edge, or strap line that doesn't match natural face contours
+- Any rigid-looking line or strap crossing the cheek toward the ear, distinct from the soft curves of skin
+
+If you see any strap, band, frame, or rigid line crossing the face toward the ear that looks different from skin or pillow texture, treat this as a mask or cannula being worn, even if you cannot identify the exact device type.
 
    - ANY thin tubing, line, or mask visible near the face, even partial or faint: "ON"
    - Patient's face is clearly visible, well lit enough to see detail, and there is definitively no tubing or mask anywhere near nose/mouth/cheeks/ears: "NOT VISIBLE"
