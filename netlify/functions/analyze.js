@@ -71,12 +71,17 @@ If you see any strap, band, frame, or rigid line crossing the face toward the ea
    - Standing or walking: "STANDING"
    - Unclear or not visible: "UNKNOWN"
 
+3. CAREGIVER: Is there a second person (caregiver, family member, nurse) visible in the frame actively present with or attending to the patient?
+   - Yes, another person is clearly visible near/with the patient: "PRESENT"
+   - No other person visible, patient appears alone: "ALONE"
+   - Cannot tell: "UNKNOWN"
+
 3. CAMERA: Is the view clear?
    - Clear: "OK"
    - Blocked or too dark: "BLOCKED"
 
 Respond ONLY in this JSON:
-{"oxygen":"ON","bed":"LYING SAFE","camera":"OK","note":"one brief sentence describing what you see"}`;
+{"oxygen":"ON","bed":"LYING SAFE","caregiver":"ALONE","camera":"OK","note":"one brief sentence describing what you see"}`;
 
   let claudeData;
   try {
@@ -112,9 +117,11 @@ Respond ONLY in this JSON:
     return { statusCode: 500, body: JSON.stringify({ error: 'Could not parse Claude response', fullClaudeResponse: claudeData }) };
   }
 
+  const caregiverPresent = result.caregiver === 'PRESENT';
+
   const isRisky =
     result.oxygen === 'NOT VISIBLE' ||
-    result.bed === 'SITTING UP' ||
+    (result.bed === 'SITTING UP' && !caregiverPresent) ||
     result.camera === 'BLOCKED';
 
   const oxygenStatus = result.oxygen === 'ON' ? 'Oxygen: Wearing' : result.oxygen === 'NOT VISIBLE' ? 'Oxygen: NOT VISIBLE' : 'Oxygen: Unclear';
@@ -139,7 +146,7 @@ Respond ONLY in this JSON:
   } else if (isRisky && consecutiveCount >= 2) {
     const issues = [];
     if (result.oxygen === 'NOT VISIBLE') issues.push('Oxygen cannula not visible');
-    if (result.bed === 'SITTING UP') issues.push('Patient sitting up - may be getting out of bed');
+    if (result.bed === 'SITTING UP' && !caregiverPresent) issues.push('Patient sitting up alone - may be getting out of bed');
     if (result.camera === 'BLOCKED') issues.push('Camera blocked or too dark');
 
     const alertMsg = issues.join(' + ') + (result.note ? '. ' + result.note : '');
@@ -160,6 +167,6 @@ Respond ONLY in this JSON:
   return {
     statusCode: 200,
     headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ oxygen: result.oxygen, bed: result.bed, camera: result.camera, note: result.note, isRisky, alertSent, fullMessage }),
+    body: JSON.stringify({ oxygen: result.oxygen, bed: result.bed, caregiver: result.caregiver, camera: result.camera, note: result.note, isRisky, alertSent, fullMessage }),
   };
 };
