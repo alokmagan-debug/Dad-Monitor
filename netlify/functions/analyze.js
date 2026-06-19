@@ -109,7 +109,7 @@ Respond ONLY in this JSON:
     const raw = claudeData.content[0].text.replace(/```json|```/g, '').trim();
     result = JSON.parse(raw);
   } catch (e) {
-    return { statusCode: 500, body: JSON.stringify({ error: 'Could not parse Claude response', rawText: claudeData.content ? claudeData.content[0].text : 'no content' }) };
+    return { statusCode: 500, body: JSON.stringify({ error: 'Could not parse Claude response', fullClaudeResponse: claudeData }) };
   }
 
   const isRisky =
