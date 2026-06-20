@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dad Monitor - Settings</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0e14;color:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,sans-serif;min-height:100vh;display:flex;flex-direction:column;padding:20px}
+.logo{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#6b7280;margin-bottom:24px;text-align:center}
+.card{background:#111827;border:1px solid #1f2937;border-radius:16px;padding:20px;margin-bottom:16px}
+.card-title{font-size:15px;font-weight:700;margin-bottom:4px}
+.card-desc{font-size:13px;color:#6b7280;margin-bottom:16px;line-height:1.4}
+.time-row{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.time-row label{font-size:13px;color:#9ca3af;width:50px;flex-shrink:0}
+.time-row input[type="time"]{flex:1;background:#0a0e14;color:#f9fafb;border:1px solid #1f2937;border-radius:10px;padding:10px 12px;font-size:15px;font-weight:600}
+.btn{width:100%;padding:15px;border-radius:13px;border:none;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px}
+.btn-save{background:#10b981;color:#000}
+.btn-save:active{opacity:.8}
+.status-msg{text-align:center;font-size:13px;margin-top:12px;min-height:18px}
+.status-msg.success{color:#10b981}
+.status-msg.error{color:#ef4444}
+.current-window{background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#93c5fd;text-align:center}
+.last-updated{font-size:11px;color:#4b5563;text-align:center;margin-top:8px}
+.note{font-size:12px;color:#6b7280;background:#0a0e14;border-radius:10px;padding:10px 12px;margin-top:8px;line-height:1.4}
+</style>
+</head>
+<body>
+<div class="logo">Dad Monitor Settings</div>
+
+<div class="current-window" id="currentWindow">Loading current settings...</div>
+
+<div class="card">
+  <div class="card-title">Active Monitoring Hours</div>
+  <div class="card-desc">Automatic camera checks and alerts only run during this window. You can still request an on-demand status check anytime, even outside these hours.</div>
+
+  <div class="time-row">
+    <label>Start</label>
+    <input type="time" id="startTime" value="23:00">
+  </div>
+  <div class="time-row">
+    <label>End</label>
+    <input type="time" id="endTime" value="06:00">
+  </div>
+
+  <button class="btn btn-save" onclick="saveSettings()">Save Settings</button>
+  <div class="status-msg" id="statusMsg"></div>
+  <div class="last-updated" id="lastUpdated"></div>
+</div>
+
+<div class="note">
+  Changes take effect on the home computer's bridge script within about 10 seconds - no restart needed.
+</div>
+
+<script>
+const SETTINGS_URL = '/.netlify/functions/settings';
+
+function pad(n) { return n.toString().padStart(2, '0'); }
+
+function formatWindow(s) {
+  const startStr = `${pad(s.activeStartHour)}:${pad(s.activeStartMinute)}`;
+  const endStr = `${pad(s.activeEndHour)}:${pad(s.activeEndMinute)}`;
+  return `Currently active: ${startStr} - ${endStr}`;
+}
+
+async function loadSettings() {
+  try {
+    const res = await fetch(SETTINGS_URL);
+    const data = await res.json();
+
+    document.getElementById('startTime').value = `${pad(data.activeStartHour)}:${pad(data.activeStartMinute)}`;
+    document.getElementById('endTime').value = `${pad(data.activeEndHour)}:${pad(data.activeEndMinute)}`;
+    document.getElementById('currentWindow').textContent = formatWindow(data);
+
+    if (data.updatedAt) {
+      const d = new Date(data.updatedAt);
+      document.getElementById('lastUpdated').textContent = 'Last updated: ' + d.toLocaleString();
+    }
+  } catch (e) {
+    document.getElementById('currentWindow').textContent = 'Could not load current settings';
+  }
+}
+
+async function saveSettings() {
+  const startVal = document.getElementById('startTime').value;
+  const endVal = document.getElementById('endTime').value;
+  const statusMsg = document.getElementById('statusMsg');
+
+  if (!startVal || !endVal) {
+    statusMsg.textContent = 'Please set both times';
+    statusMsg.className = 'status-msg error';
+    return;
+  }
+
+  const [startHour, startMinute] = startVal.split(':').map(Number);
+  const [endHour, endMinute] = endVal.split(':').map(Number);
+
+  statusMsg.textContent = 'Saving...';
+  statusMsg.className = 'status-msg';
+
+  try {
+    const res = await fetch(SETTINGS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        activeStartHour: startHour,
+        activeStartMinute: startMinute,
+        activeEndHour: endHour,
+        activeEndMinute: endMinute,
+      }),
+    });
+    const data = await res.json();
+
+    if (data.error) {
+      statusMsg.textContent = 'Error: ' + data.error;
+      statusMsg.className = 'status-msg error';
+      return;
+    }
+
+    statusMsg.textContent = 'Saved! Bridge will pick this up within ~10 seconds.';
+    statusMsg.className = 'status-msg success';
+    document.getElementById('currentWindow').textContent = formatWindow(data.settings);
+
+    const d = new Date(data.settings.updatedAt);
+    document.getElementById('lastUpdated').textContent = 'Last updated: ' + d.toLocaleString();
+  } catch (e) {
+    statusMsg.textContent = 'Network error: ' + e.message;
+    statusMsg.className = 'status-msg error';
+  }
+}
+
+loadSettings();
+</script>
+</body>
+</html>

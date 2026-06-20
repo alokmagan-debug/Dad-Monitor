@@ -1,0 +1,23 @@
+{
+  "name": "dad-monitor-v2",
+  "version": "1.0.0",
+  "description": "An AI-powered camera monitoring system for caregivers, originally built to watch over an elderly parent recovering at home — checking for oxygen cannula/mask placement, unsafe bed-exit attempts, and reminding caregivers to reposition a bed-bound patient to help prevent pressure sores.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alokmagan-debug/Dad-Monitor.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/alokmagan-debug/Dad-Monitor/issues"
+  },
+  "homepage": "https://github.com/alokmagan-debug/Dad-Monitor#readme",
+  "dependencies": {
+    "@netlify/blobs": "^10.7.9"
+  }
+}
