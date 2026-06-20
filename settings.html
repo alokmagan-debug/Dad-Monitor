@@ -20,15 +20,11 @@ body{background:#0a0e14;color:#f9fafb;font-family:-apple-system,BlinkMacSystemFo
 .status-msg{text-align:center;font-size:13px;margin-top:12px;min-height:18px}
 .status-msg.success{color:#10b981}
 .status-msg.error{color:#ef4444}
-.current-window{background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#93c5fd;text-align:center}
-.last-updated{font-size:11px;color:#4b5563;text-align:center;margin-top:8px}
 .note{font-size:12px;color:#6b7280;background:#0a0e14;border-radius:10px;padding:10px 12px;margin-top:8px;line-height:1.4}
 </style>
 </head>
 <body>
 <div class="logo">Dad Monitor Settings</div>
-
-<div class="current-window" id="currentWindow">Loading current settings...</div>
 
 <div class="card">
   <div class="card-title">Active Monitoring Hours</div>
@@ -45,41 +41,15 @@ body{background:#0a0e14;color:#f9fafb;font-family:-apple-system,BlinkMacSystemFo
 
   <button class="btn btn-save" onclick="saveSettings()">Save Settings</button>
   <div class="status-msg" id="statusMsg"></div>
-  <div class="last-updated" id="lastUpdated"></div>
 </div>
 
 <div class="note">
-  Changes take effect on the home computer's bridge script within about 10 seconds - no restart needed.
+  Changes are sent to the home computer's bridge script via ntfy and take effect within about 10 seconds - no restart needed. Make sure the bridge script is running.
 </div>
 
 <script>
-const SETTINGS_URL = '/.netlify/functions/settings';
-
-function pad(n) { return n.toString().padStart(2, '0'); }
-
-function formatWindow(s) {
-  const startStr = `${pad(s.activeStartHour)}:${pad(s.activeStartMinute)}`;
-  const endStr = `${pad(s.activeEndHour)}:${pad(s.activeEndMinute)}`;
-  return `Currently active: ${startStr} - ${endStr}`;
-}
-
-async function loadSettings() {
-  try {
-    const res = await fetch(SETTINGS_URL);
-    const data = await res.json();
-
-    document.getElementById('startTime').value = `${pad(data.activeStartHour)}:${pad(data.activeStartMinute)}`;
-    document.getElementById('endTime').value = `${pad(data.activeEndHour)}:${pad(data.activeEndMinute)}`;
-    document.getElementById('currentWindow').textContent = formatWindow(data);
-
-    if (data.updatedAt) {
-      const d = new Date(data.updatedAt);
-      document.getElementById('lastUpdated').textContent = 'Last updated: ' + d.toLocaleString();
-    }
-  } catch (e) {
-    document.getElementById('currentWindow').textContent = 'Could not load current settings';
-  }
-}
+// Must match NTFY_SETTINGS_TOPIC in bridge.py
+const SETTINGS_TOPIC = 'Alok-dad-settings';
 
 async function saveSettings() {
   const startVal = document.getElementById('startTime').value;
@@ -98,38 +68,27 @@ async function saveSettings() {
   statusMsg.textContent = 'Saving...';
   statusMsg.className = 'status-msg';
 
-  try {
-    const res = await fetch(SETTINGS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        activeStartHour: startHour,
-        activeStartMinute: startMinute,
-        activeEndHour: endHour,
-        activeEndMinute: endMinute,
-      }),
-    });
-    const data = await res.json();
+  // Simple structured message the bridge script will parse:
+  // SETTINGS:startHour:startMinute:endHour:endMinute
+  const message = `SETTINGS:${startHour}:${startMinute}:${endHour}:${endMinute}`;
 
-    if (data.error) {
-      statusMsg.textContent = 'Error: ' + data.error;
-      statusMsg.className = 'status-msg error';
-      return;
+  try {
+    const res = await fetch(`https://ntfy.sh/${SETTINGS_TOPIC}`, {
+      method: 'POST',
+      body: message,
+    });
+
+    if (!res.ok) {
+      throw new Error('ntfy responded with status ' + res.status);
     }
 
-    statusMsg.textContent = 'Saved! Bridge will pick this up within ~10 seconds.';
+    statusMsg.textContent = `Saved! Active hours set to ${startVal} - ${endVal}. Bridge will pick this up within ~10 seconds.`;
     statusMsg.className = 'status-msg success';
-    document.getElementById('currentWindow').textContent = formatWindow(data.settings);
-
-    const d = new Date(data.settings.updatedAt);
-    document.getElementById('lastUpdated').textContent = 'Last updated: ' + d.toLocaleString();
   } catch (e) {
-    statusMsg.textContent = 'Network error: ' + e.message;
+    statusMsg.textContent = 'Error sending settings: ' + e.message;
     statusMsg.className = 'status-msg error';
   }
 }
-
-loadSettings();
 </script>
 </body>
 </html>
