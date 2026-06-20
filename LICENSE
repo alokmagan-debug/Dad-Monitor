@@ -1,0 +1,42 @@
+MIT License
+
+Copyright (c) 2026 Dad Monitor contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+ADDITIONAL NOTICE - NOT A MEDICAL DEVICE
+
+This software is a personal hobby project and is explicitly NOT a certified,
+regulated, or clinically validated medical device. It is provided as a
+supplemental monitoring aid only and must never be relied upon as a
+substitute for professional medical care, in-person caregiving, nursing
+supervision, or emergency services.
+
+The software uses third-party AI image analysis (Anthropic's Claude models),
+which can produce incorrect results, including failing to detect real safety
+issues (false negatives) and incorrectly flagging non-issues (false
+positives). Users assume full responsibility for independently verifying the
+software's behavior in their own environment before relying on it in any way,
+and for maintaining appropriate human supervision and medical care at all
+times regardless of this software's output.
+
+In case of a medical emergency, contact your local emergency services
+immediately. Do not wait for, or rely on, a notification from this software.

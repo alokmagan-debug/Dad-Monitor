@@ -1,0 +1,381 @@
+#!/usr/bin/env python3
+"""
+Dad Monitor - Wyze Cam to Netlify Bridge (EXAMPLE / TEMPLATE)
+
+Copy this file to bridge.py and fill in your own values below before running.
+Never commit your real bridge.py (with real credentials) to a public repo -
+bridge.py is already listed in .gitignore for this reason.
+
+See README.md for full setup instructions.
+"""
+
+import subprocess
+import requests
+import base64
+import time
+import sys
+import os
+import json
+import shutil
+from datetime import datetime
+
+# ===== CONFIGURATION - FILL IN YOUR OWN VALUES =====
+
+# Your camera's RTSP URL, including username and password.
+# Get this from your camera's app (e.g. Wyze app -> Advanced Settings -> RTSP).
+# If your password contains special characters (@, !, #, etc.), URL-encode them:
+#   @ -> %40   ! -> %21   # -> %23
+RTSP_URL = "rtsp://YOUR_USERNAME:YOUR_PASSWORD@YOUR_CAMERA_IP:554/stream0"
+
+# Your deployed Netlify function URL (see README.md step 2)
+NETLIFY_URL = "https://YOUR-SITE-NAME.netlify.app/.netlify/functions/analyze"
+
+# Pick a unique, hard-to-guess ntfy.sh topic name for notifications.
+# This MUST match the NTFY_TOPIC environment variable you set in Netlify.
+# Anyone who knows this topic name can see your notifications - keep it private.
+NTFY_TOPIC = "your-unique-monitor-topic-name"
+
+# A separate topic for sending on-demand "status" check requests.
+NTFY_COMMAND_TOPIC = "your-unique-command-topic-name"
+
+CHECK_INTERVAL = 600  # seconds between automatic checks (600 = 10 minutes)
+COMMAND_POLL_INTERVAL = 10  # how often to check for incoming "status" requests
+SNAPSHOT_PATH = "/tmp/dad_monitor_snapshot.jpg"
+ALERT_SNAPSHOT_PATH = "/tmp/dad_monitor_snapshot_alert.jpg"
+
+POSITION_ALERT_HOURS = 2  # remind to reposition patient if no change for this long
+POSITION_REMINDER_COOLDOWN_HOURS = 1  # minimum time between repeated reminders
+
+# ====================================================
+
+consecutive_risky = 0
+last_command_check_time = 0
+last_ntfy_msg_id = None
+
+last_position = None
+position_since = None
+last_position_reminder_time = None
+
+
+def log(msg, level="INFO"):
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    colors = {
+        "INFO": "\033[0m",
+        "OK": "\033[92m",
+        "WARN": "\033[93m",
+        "ALERT": "\033[91m",
+        "CMD": "\033[96m",
+        "POS": "\033[95m",
+    }
+    color = colors.get(level, "\033[0m")
+    reset = "\033[0m"
+    print(f"{color}[{timestamp}] {msg}{reset}")
+
+
+def send_ntfy(title, body, priority="default", tags="info", image_path=None):
+    try:
+        headers = {"Title": title, "Priority": priority, "Tags": tags}
+
+        if image_path and os.path.exists(image_path):
+            filename = os.path.basename(image_path)
+            headers["Filename"] = filename
+            with open(image_path, "rb") as f:
+                requests.put(
+                    f"https://ntfy.sh/{NTFY_TOPIC}",
+                    headers={**headers, "Message": body},
+                    data=f,
+                    timeout=20,
+                )
+        else:
+            requests.post(
+                f"https://ntfy.sh/{NTFY_TOPIC}",
+                headers=headers,
+                data=body.encode("utf-8"),
+                timeout=10,
+            )
+    except Exception as e:
+        log(f"ntfy send failed: {e}", "WARN")
+
+
+def capture_snapshot(path=SNAPSHOT_PATH):
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-rtsp_transport", "tcp",
+                "-i", RTSP_URL,
+                "-vframes", "1",
+                "-update", "1",
+                "-vf", "scale=640:-1",
+                "-q:v", "5",
+                "-y", path,
+            ],
+            capture_output=True,
+            timeout=15,
+        )
+
+        if os.path.exists(path):
+            return True
+        else:
+            log(f"ffmpeg failed: {result.stderr.decode()[-300:]}", "WARN")
+            return False
+
+    except subprocess.TimeoutExpired:
+        log("ffmpeg timed out grabbing snapshot", "WARN")
+        return False
+    except Exception as e:
+        log(f"Capture error: {e}", "WARN")
+        return False
+
+
+def analyze_snapshot(is_on_demand=False):
+    global consecutive_risky
+
+    try:
+        with open(SNAPSHOT_PATH, "rb") as f:
+            image_data = base64.b64encode(f.read()).decode("ascii")
+    except Exception as e:
+        log(f"Could not read snapshot: {e}", "WARN")
+        return None
+
+    try:
+        response = requests.post(
+            NETLIFY_URL,
+            json={
+                "image": image_data,
+                "consecutiveCount": consecutive_risky,
+                "isOnDemand": is_on_demand,
+            },
+            timeout=30,
+        )
+        data = response.json()
+    except Exception as e:
+        log(f"Network error calling Netlify: {e}", "WARN")
+        return None
+
+    if "error" in data:
+        log(f"Analysis error: {data['error']}", "WARN")
+        return None
+
+    oxygen = data.get("oxygen", "UNKNOWN")
+    bed = data.get("bed", "UNKNOWN")
+    caregiver = data.get("caregiver", "UNKNOWN")
+    camera = data.get("camera", "OK")
+    note = data.get("note", "")
+    is_risky = data.get("isRisky", False)
+    alert_sent = data.get("alertSent", False)
+
+    status_line = f"Oxygen: {oxygen} | Bed: {bed} | Caregiver: {caregiver} | Camera: {camera}"
+    if note:
+        status_line += f" | {note}"
+
+    if is_on_demand:
+        log(f"On-demand status: {status_line}", "CMD")
+        data["_status_line"] = status_line
+        return data
+
+    if is_risky:
+        consecutive_risky += 1
+        if consecutive_risky >= 2:
+            log(f"ALERT ({consecutive_risky} consecutive): {status_line}", "ALERT")
+            try:
+                shutil.copy(SNAPSHOT_PATH, ALERT_SNAPSHOT_PATH)
+            except Exception as e:
+                log(f"Could not copy alert snapshot: {e}", "WARN")
+        else:
+            log(f"Risky reading {consecutive_risky}/2: {status_line}", "WARN")
+    else:
+        consecutive_risky = 0
+        log(f"All clear: {status_line}", "OK")
+
+    data["_status_line"] = status_line
+    return data
+
+
+def send_risky_alert_with_image(data):
+    status_line = data.get("_status_line", "Risky reading detected")
+    image_to_attach = ALERT_SNAPSHOT_PATH if os.path.exists(ALERT_SNAPSHOT_PATH) else None
+
+    send_ntfy(
+        "Dad Monitor Alert",
+        status_line,
+        priority="urgent",
+        tags="warning,rotating_light",
+        image_path=image_to_attach,
+    )
+    log("-> ntfy ALERT with image sent", "ALERT")
+
+
+def track_position_for_bedsores(data):
+    global last_position, position_since, last_position_reminder_time
+
+    if data is None:
+        return
+
+    bed = data.get("bed")
+    if bed not in ("LYING SAFE", "SITTING UP", "IN CHAIR", "STANDING"):
+        return
+
+    now = datetime.now()
+
+    if last_position is None:
+        last_position = bed
+        position_since = now
+        log(f"Position tracking started: {bed}", "POS")
+        return
+
+    if bed != last_position:
+        duration = now - position_since
+        log(f"Position changed: {last_position} -> {bed} (held for {duration})", "POS")
+        last_position = bed
+        position_since = now
+        last_position_reminder_time = None
+        return
+
+    duration = now - position_since
+    hours_unchanged = duration.total_seconds() / 3600
+
+    if hours_unchanged >= POSITION_ALERT_HOURS:
+        if last_position_reminder_time is not None:
+            since_last_reminder = (now - last_position_reminder_time).total_seconds() / 3600
+            if since_last_reminder < POSITION_REMINDER_COOLDOWN_HOURS:
+                return
+
+        last_position_reminder_time = now
+        readable_position = {
+            "LYING SAFE": "lying in the same position",
+            "SITTING UP": "sitting up in the same position",
+            "IN CHAIR": "seated in the wheelchair/chair in the same position",
+            "STANDING": "standing/in the same spot",
+        }.get(bed, bed)
+
+        send_ntfy(
+            "Dad Monitor - Reposition Reminder",
+            f"Patient has been {readable_position} for about {hours_unchanged:.1f} hours. Consider repositioning to help prevent pressure sores.",
+            priority="default",
+            tags="bed",
+            image_path=SNAPSHOT_PATH if os.path.exists(SNAPSHOT_PATH) else None,
+        )
+        log(f"-> reposition reminder sent ({hours_unchanged:.1f}h unchanged: {bed})", "POS")
+
+
+def check_for_status_command():
+    global last_ntfy_msg_id, last_command_check_time
+
+    now = time.time()
+    if now - last_command_check_time < COMMAND_POLL_INTERVAL:
+        return False
+
+    last_command_check_time = now
+
+    try:
+        resp = requests.get(
+            f"https://ntfy.sh/{NTFY_COMMAND_TOPIC}/json",
+            params={"poll": "1", "since": "2m"},
+            timeout=10,
+        )
+        lines = [l for l in resp.text.strip().split("\n") if l.strip()]
+        triggered = False
+        for line in lines:
+            try:
+                msg = json.loads(line)
+            except Exception:
+                continue
+            msg_id = msg.get("id")
+            text = (msg.get("message") or "").strip().lower()
+            if msg_id and msg_id != last_ntfy_msg_id:
+                last_ntfy_msg_id = msg_id
+                if text in ("status", "s"):
+                    triggered = True
+        return triggered
+    except Exception as e:
+        log(f"Command poll failed: {e}", "WARN")
+        return False
+
+
+def handle_on_demand_status():
+    log("Status request received", "CMD")
+    if capture_snapshot(SNAPSHOT_PATH):
+        data = analyze_snapshot(is_on_demand=True)
+        if data:
+            status_line = data.get("_status_line", "Status check failed")
+            send_ntfy(
+                "Status Report",
+                status_line,
+                priority="default",
+                tags="mag",
+                image_path=SNAPSHOT_PATH,
+            )
+            log("-> status report with image sent", "CMD")
+    else:
+        send_ntfy(
+            "Status Report",
+            "Could not capture snapshot from camera right now.",
+            priority="default",
+            tags="warning",
+        )
+
+
+def main():
+    global last_command_check_time, consecutive_risky
+
+    if "YOUR_" in RTSP_URL or "YOUR-SITE-NAME" in NETLIFY_URL or "your-unique" in NTFY_TOPIC:
+        log("=" * 60, "WARN")
+        log("STOP: You're still using placeholder values!", "WARN")
+        log("Edit the CONFIGURATION section at the top of this file", "WARN")
+        log("with your real camera URL, Netlify URL, and ntfy topic names.", "WARN")
+        log("See README.md for setup instructions.", "WARN")
+        log("=" * 60, "WARN")
+        sys.exit(1)
+
+    log("=" * 60)
+    log("Dad Monitor - Bridge starting")
+    log(f"Check interval: {CHECK_INTERVAL}s ({CHECK_INTERVAL // 60} min)")
+    log(f"On-demand: send 'status' to ntfy.sh/{NTFY_COMMAND_TOPIC}")
+    log(f"Reposition reminders after {POSITION_ALERT_HOURS}h unchanged position")
+    log("Press Ctrl+C to stop")
+    log("=" * 60)
+
+    send_ntfy(
+        "Dad Monitor - Bridge started",
+        f"Bridge is now running. Checking every {CHECK_INTERVAL // 60} min. Send 'status' to {NTFY_COMMAND_TOPIC} for on-demand check.",
+        priority="default",
+        tags="rocket",
+    )
+    last_command_check_time = time.time()
+
+    while True:
+        try:
+            if check_for_status_command():
+                handle_on_demand_status()
+
+            data = None
+            if capture_snapshot(SNAPSHOT_PATH):
+                data = analyze_snapshot(is_on_demand=False)
+                if data and data.get("isRisky") and consecutive_risky >= 2:
+                    send_risky_alert_with_image(data)
+                track_position_for_bedsores(data)
+            else:
+                log("Skipping analysis - snapshot capture failed", "WARN")
+
+            time.sleep(CHECK_INTERVAL)
+
+        except KeyboardInterrupt:
+            log("Stopping bridge - goodbye!", "INFO")
+            send_ntfy(
+                "Dad Monitor - Bridge stopped",
+                "Bridge has been stopped.",
+                priority="low",
+                tags="warning",
+            )
+            sys.exit(0)
+        except Exception as e:
+            log(f"Unexpected error: {e}", "WARN")
+            time.sleep(CHECK_INTERVAL)
+
+
+if __name__ == "__main__":
+    main()

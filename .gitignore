@@ -1,0 +1,24 @@
+# Never commit your real bridge.py with actual credentials
+bridge.py
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Logs and temp snapshots
+*.log
+/tmp/
+bridge_output.log
+bridge_error.log
+
+# Node (if ever added)
+node_modules/
+
+# Editor files
+.vscode/
+.idea/
