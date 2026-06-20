@@ -71,6 +71,14 @@ If you see any strap, band, frame, or rigid line crossing the face toward the ea
    - Standing or walking: "STANDING"
    - Unclear or not visible: "UNKNOWN"
 
+2b. ORIENTATION (only fill this in if BED is "LYING SAFE" - otherwise use "N/A"):
+Describe which way the patient's body is turned while lying down, for pressure sore prevention tracking:
+   - Lying on their left side (body/face turned toward their left): "LEFT SIDE"
+   - Lying on their right side (body/face turned toward their right): "RIGHT SIDE"
+   - Lying flat on their back, face/chest upward: "BACK"
+   - Lying flat on their stomach, face downward: "STOMACH"
+   - Cannot tell orientation clearly: "UNCLEAR"
+
 3. CAREGIVER: Is there a second person (caregiver, family member, nurse) visible in the frame actively present with or attending to the patient?
    - Yes, another person is clearly visible near/with the patient: "PRESENT"
    - No other person visible, patient appears alone: "ALONE"
@@ -81,7 +89,7 @@ If you see any strap, band, frame, or rigid line crossing the face toward the ea
    - Blocked or too dark: "BLOCKED"
 
 Respond ONLY in this JSON:
-{"oxygen":"ON","bed":"LYING SAFE","caregiver":"ALONE","camera":"OK","note":"one brief sentence describing what you see"}`;
+{"oxygen":"ON","bed":"LYING SAFE","orientation":"LEFT SIDE","caregiver":"ALONE","camera":"OK","note":"one brief sentence describing what you see"}`;
 
   let claudeData;
   try {
@@ -167,6 +175,6 @@ Respond ONLY in this JSON:
   return {
     statusCode: 200,
     headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ oxygen: result.oxygen, bed: result.bed, caregiver: result.caregiver, camera: result.camera, note: result.note, isRisky, alertSent, fullMessage }),
+    body: JSON.stringify({ oxygen: result.oxygen, bed: result.bed, orientation: result.orientation, caregiver: result.caregiver, camera: result.camera, note: result.note, isRisky, alertSent, fullMessage }),
   };
 };
