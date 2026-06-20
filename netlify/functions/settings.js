@@ -13,7 +13,7 @@ exports.handler = async function (event) {
     };
   }
 
-  const store = getStore('dad-monitor-settings');
+  const store = getStore({ name: 'dad-monitor-settings', consistency: 'strong' });
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json',
