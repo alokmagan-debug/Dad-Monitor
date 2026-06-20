@@ -30,7 +30,7 @@ exports.handler = async function (event) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Invalid JSON body' }) };
   }
 
-  const { image, consecutiveCount, isOnDemand } = body;
+  const { image, previousImage, consecutiveCount, isOnDemand } = body;
 
   if (!image) {
     return { statusCode: 400, body: JSON.stringify({ error: 'No image provided' }) };
@@ -71,13 +71,13 @@ If you see any strap, band, frame, or rigid line crossing the face toward the ea
    - Standing or walking: "STANDING"
    - Unclear or not visible: "UNKNOWN"
 
-2b. ORIENTATION (only fill this in if BED is "LYING SAFE" - otherwise use "N/A"):
-Describe which way the patient's body is turned while lying down, for pressure sore prevention tracking:
-   - Lying on their left side (body/face turned toward their left): "LEFT SIDE"
-   - Lying on their right side (body/face turned toward their right): "RIGHT SIDE"
-   - Lying flat on their back, face/chest upward: "BACK"
-   - Lying flat on their stomach, face downward: "STOMACH"
-   - Cannot tell orientation clearly: "UNCLEAR"
+2b. POSITION CHANGE: You may be shown a SECOND, earlier reference image for comparison.
+If a previous image is provided, compare the patient's body position, posture, and orientation between the two images and determine:
+   - The body position/posture has clearly and meaningfully changed between the two images (e.g. rolled to a different side, sat up, moved limbs significantly, repositioned): "CHANGED"
+   - The body position looks essentially the same in both images (same side, same posture, no meaningful repositioning): "UNCHANGED"
+   - No previous image was provided, or it's impossible to tell: "UNKNOWN"
+
+This is for pressure sore prevention - we care whether the patient has been physically repositioned recently, not the exact direction."
 
 3. CAREGIVER: Is there a second person (caregiver, family member, nurse) visible in the frame actively present with or attending to the patient?
    - Yes, another person is clearly visible near/with the patient: "PRESENT"
@@ -89,7 +89,16 @@ Describe which way the patient's body is turned while lying down, for pressure s
    - Blocked or too dark: "BLOCKED"
 
 Respond ONLY in this JSON:
-{"oxygen":"ON","bed":"LYING SAFE","orientation":"LEFT SIDE","caregiver":"ALONE","camera":"OK","note":"one brief sentence describing what you see"}`;
+{"oxygen":"ON","bed":"LYING SAFE","positionChange":"UNCHANGED","caregiver":"ALONE","camera":"OK","note":"one brief sentence describing what you see"}`;
+
+  const contentBlocks = [];
+  if (previousImage) {
+    contentBlocks.push({ type: 'text', text: 'PREVIOUS reference image (for position comparison only):' });
+    contentBlocks.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: previousImage } });
+    contentBlocks.push({ type: 'text', text: 'CURRENT image (analyze this one fully, and compare position to the previous image above):' });
+  }
+  contentBlocks.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: image } });
+  contentBlocks.push({ type: 'text', text: prompt });
 
   let claudeData;
   try {
@@ -105,10 +114,7 @@ Respond ONLY in this JSON:
         max_tokens: 150,
         messages: [{
           role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: image } },
-            { type: 'text', text: prompt }
-          ]
+          content: contentBlocks
         }]
       }),
     });
@@ -175,6 +181,6 @@ Respond ONLY in this JSON:
   return {
     statusCode: 200,
     headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ oxygen: result.oxygen, bed: result.bed, orientation: result.orientation, caregiver: result.caregiver, camera: result.camera, note: result.note, isRisky, alertSent, fullMessage }),
+    body: JSON.stringify({ oxygen: result.oxygen, bed: result.bed, positionChange: result.positionChange, caregiver: result.caregiver, camera: result.camera, note: result.note, isRisky, alertSent, fullMessage }),
   };
 };
